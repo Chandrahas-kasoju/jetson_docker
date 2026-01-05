@@ -3,7 +3,6 @@
 import cv2
 import mediapipe as mp
 import numpy as np
-import depthai as dai 
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
