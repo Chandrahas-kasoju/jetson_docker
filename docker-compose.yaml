@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  ros2_dev:
+    build:
+      context: .
+      args:
+        #   # Docker Compose will now read the values for these variables
+        #   # from the .env file or use the defaults provided.
+        - UID=${UID:-1000}
+        - GID=${GID:-1000}
+        - VIDEO_GID=${VIDEO_GID}
+    image: ros2-jetson-vision
+    container_name: ros2_jetson_container
+    environment:
+      - ROS_DISTRO=humble
+      - DISPLAY=${DISPLAY}
+      - XDG_RUNTIME_DIR=/tmp/runtime-docker
+    volumes:
+      - ./ros2_ws_jetson:/home/docker_user/ros2_ws_jetson
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - ~/.Xauthority:/home/docker_user/.Xauthority:rw
+    devices:
+      - /dev/video0:/dev/video6
+      #  - /dev/ttyACM0:/dev/ttyACM0
+      #  - /dev/ttyUSB0:/dev/ttyUSB0
+      - /dev:/dev
+      - /dev/dri:/dev/dri # For GPU hardware acceleration
+    network_mode: "host"
+    privileged: true
+    stdin_open: true
+    tty: true
