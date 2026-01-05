@@ -25,7 +25,7 @@ setup(
     entry_points={
         'console_scripts': [
             'tracker = face_tracker.tracker:main',
-            'aspect_ratio_standalone = face_tracker.aspect_ratio_standalone:main',
+            'aspect_ratio_standalone = face_tracker.aspect_ratio_standalone_v3:main',
         ],
     },
 )
