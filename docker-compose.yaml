@@ -21,9 +21,6 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix
       - ~/.Xauthority:/home/docker_user/.Xauthority:rw
     devices:
-      - /dev/video0:/dev/video6
-      #  - /dev/ttyACM0:/dev/ttyACM0
-      #  - /dev/ttyUSB0:/dev/ttyUSB0
       - /dev:/dev
       - /dev/dri:/dev/dri # For GPU hardware acceleration
     network_mode: "host"
