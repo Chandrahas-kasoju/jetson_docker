@@ -8,6 +8,12 @@ export PATH="/home/docker_user/.local/bin:${PATH}"
 # Source the main ROS 2 setup file
 source /opt/ros/${ROS_DISTRO}/setup.bash
 
+# Source micro-ROS setup if it exists
+if [ -f /micro_ros_ws/install/setup.bash ]; then
+  source /micro_ros_ws/install/setup.bash
+  echo "Sourced micro-ROS workspace"
+fi
+
 # Source the local workspace's setup file, if it exists
 if [ -f /home/docker_user/ros2_ws_jetson/install/setup.bash ]; then
   source /home/docker_user/ros2_ws_jetson/install/setup.bash

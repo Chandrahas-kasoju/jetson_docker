@@ -9,6 +9,8 @@ SHELL ["/bin/bash", "-c"]
 ENV TZ=Etc/UTC
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
+
+
 # Install system dependencies and tools as root
 RUN apt-get update && apt-get install -y \
     sudo build-essential git vim v4l-utils \
@@ -21,7 +23,7 @@ RUN apt-get update && apt-get install -y \
     libboost-all-dev \
     #libpcl-dev \
     ros-${ROS_DISTRO}-pcl-conversions 
-    #Is pcl-conversions necessary?
+#Is pcl-conversions necessary?
 RUN apt update && apt install -y \
     libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
     libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev \
@@ -36,6 +38,18 @@ RUN apt-get update && apt-get install -y \
 # Initialize rosdep as root
 RUN rosdep init || true && rosdep update
 
+# Install micro_ros
+WORKDIR /micro_ros_ws
+RUN git clone -b ${ROS_DISTRO} https://github.com/micro-ROS/micro_ros_setup.git src/micro_ros_setup \
+    && . /opt/ros/${ROS_DISTRO}/setup.sh \
+    && apt-get update \
+    && rosdep install --from-paths src --ignore-src -y \
+    && colcon build \
+    && . install/local_setup.sh \
+    && ros2 run micro_ros_setup create_agent_ws.sh \
+    && ros2 run micro_ros_setup build_agent.sh \
+    && rm -rf /var/lib/apt/lists/*
+
 # Create the user
 ARG UID=1000
 ARG GID=1000
@@ -46,7 +60,7 @@ RUN groupadd -g $GID -o docker_user && \
 ARG VIDEO_GID
 #ARG DIALOUT_GID
 RUN if [ -n "$VIDEO_GID" ]; then \
-        if ! getent group $VIDEO_GID > /dev/null; then groupadd -g $VIDEO_GID video; fi; \
+    if ! getent group $VIDEO_GID > /dev/null; then groupadd -g $VIDEO_GID video; fi; \
     fi && \
     #if [ -n "$DIALOUT_GID" ]; then \
     #    if ! getent group $DIALOUT_GID > /dev/null; then groupadd -g $DIALOUT_GID dialout; fi; \
@@ -84,6 +98,7 @@ RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> /home/docker_user/.bashrc
 RUN echo "export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp" >> /home/docker_user/.bashrc
 RUN echo "source /home/docker_user/ros2_ws_jetson/install/setup.bash" >> /home/docker_user/.bashrc
 RUN echo "export ROS_DOMAIN_ID=0" >> /home/docker_user/.bashrc
+RUN echo "source /micro_ros_ws/install/setup.bash" >> /home/docker_user/.bashrc
 # Set the entrypoint
 ENTRYPOINT ["/home/docker_user/entrypoint.sh"]
 # Set the default command
