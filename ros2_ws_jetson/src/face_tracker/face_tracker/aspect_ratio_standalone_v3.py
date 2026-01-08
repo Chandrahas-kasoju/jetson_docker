@@ -361,8 +361,11 @@ class FaceTrackerNode(Node):
         px_max_y = int(y_max * h)
 
         # --- CREATE STANDARD ROS MESSAGE ---
-        msg = Float32MultiArray()
-        msg.data = [float(px_min_x), float(px_min_y), float(px_max_x), float(px_max_y)]
+        msg = BoundingBox2D()
+        msg.center.x = (px_min_x + px_max_x) / 2.0
+        msg.center.y = (px_min_y + px_max_y) / 2.0
+        msg.size_x = px_max_x - px_min_x
+        msg.size_y = px_max_y - px_min_y
         
         self.bb_pub.publish(msg)
 
