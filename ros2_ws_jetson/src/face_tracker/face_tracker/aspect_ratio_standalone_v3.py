@@ -41,6 +41,7 @@ class FaceTrackerNode(Node):
         )
         self.bb_pub = self.create_publisher(BoundingBox2D, '/hospibot/pose_bbox', 10)
         self.eye_center_pub = self.create_publisher(Point2D, '/face_tracker/eye_center', 10)
+        self.analysis_pub = self.create_publisher(Image, '/hospibot/posture_analysis', 10)
         
         # MediaPipe Tasks API Setup
         model_path = os.path.join(os.path.dirname(__file__), 'pose_landmarker_full.task')
@@ -467,6 +468,16 @@ class FaceTrackerNode(Node):
                 hip_length, shoulder_length, torso_ratio
             )
         
+        # Publish the processed image
+        try:
+            # Convert back to ROS Image message
+            # We use "bgr8" because we are publishing the BGR image used by OpenCV
+            out_msg = self.bridge.cv2_to_imgmsg(cv_image, "bgr8")
+            out_msg.header = msg.header # Propagate the header (timestamp, frame_id)
+            self.analysis_pub.publish(out_msg)
+        except Exception as e:
+            self.get_logger().error(f"Failed to publish analysis image: {e}")
+
         #cv2.imshow('Posture Analyzer (ROS 2)', cv_image)
         
         if cv2.waitKey(1) & 0xFF in [27, ord('q')]:
