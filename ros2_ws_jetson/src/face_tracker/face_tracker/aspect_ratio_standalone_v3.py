@@ -14,7 +14,7 @@ import os
 
 # --- USE STANDARD MESSAGE ---
 from std_msgs.msg import Float32MultiArray
-from vision_msgs.msg import Point2D
+from vision_msgs.msg import Point2D, BoundingBox2D
 
 class FaceTrackerNode(Node):
     def __init__(self):
@@ -39,7 +39,7 @@ class FaceTrackerNode(Node):
             self.image_callback,
             10
         )
-        self.bb_pub = self.create_publisher(Float32MultiArray, '/hospibot/pose_bbox', 10)
+        self.bb_pub = self.create_publisher(BoundingBox2D, '/hospibot/pose_bbox', 10)
         self.eye_center_pub = self.create_publisher(Point2D, '/face_tracker/eye_center', 10)
         
         # MediaPipe Tasks API Setup
