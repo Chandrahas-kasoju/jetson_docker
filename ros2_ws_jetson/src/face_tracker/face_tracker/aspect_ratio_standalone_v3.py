@@ -14,6 +14,7 @@ import os
 
 # --- USE STANDARD MESSAGE ---
 from std_msgs.msg import Float32MultiArray
+from vision_msgs.msg import Point2D
 
 class FaceTrackerNode(Node):
     def __init__(self):
@@ -39,6 +40,7 @@ class FaceTrackerNode(Node):
             10
         )
         self.bb_pub = self.create_publisher(Float32MultiArray, '/hospibot/pose_bbox', 10)
+        self.eye_center_pub = self.create_publisher(Point2D, '/face_tracker/eye_center', 10)
         
         # MediaPipe Tasks API Setup
         model_path = os.path.join(os.path.dirname(__file__), 'pose_landmarker_full.task')
@@ -363,6 +365,26 @@ class FaceTrackerNode(Node):
         msg.data = [float(px_min_x), float(px_min_y), float(px_max_x), float(px_max_y)]
         
         self.bb_pub.publish(msg)
+
+        # --- CALCULATE AND PUBLISH EYE CENTER ---
+        # Indices: 2 = Left Eye, 5 = Right Eye
+        if len(landmarks) > 5:
+            left_eye = landmarks[2]
+            right_eye = landmarks[5]
+            
+            eye_center_x = (left_eye.x + right_eye.x) / 2.0
+            eye_center_y = (left_eye.y + right_eye.y) / 2.0
+            
+            px_eye_x = eye_center_x * w
+            px_eye_y = eye_center_y * h
+            
+            eye_msg = Point2D()
+            eye_msg.x = float(px_eye_x)
+            eye_msg.y = float(px_eye_y)
+            self.eye_center_pub.publish(eye_msg)
+            
+            # Draw the eye center
+            cv2.circle(image, (int(px_eye_x), int(px_eye_y)), 5, (0, 255, 255), -1)
         
         # Draw the bounding box
         cv2.rectangle(image, (px_min_x, px_min_y), (px_max_x, px_max_y), (0, 255, 0), 2)
@@ -441,7 +463,7 @@ class FaceTrackerNode(Node):
                 hip_length, shoulder_length, torso_ratio
             )
         
-        cv2.imshow('Posture Analyzer (ROS 2)', cv_image)
+        #cv2.imshow('Posture Analyzer (ROS 2)', cv_image)
         
         if cv2.waitKey(1) & 0xFF in [27, ord('q')]:
             self.get_logger().info("Shutdown requested via 'q' or ESC.")
