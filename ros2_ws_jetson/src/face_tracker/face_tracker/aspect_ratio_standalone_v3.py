@@ -362,10 +362,11 @@ class FaceTrackerNode(Node):
 
         # --- CREATE STANDARD ROS MESSAGE ---
         msg = BoundingBox2D()
-        msg.center.x = (px_min_x + px_max_x) / 2.0
-        msg.center.y = (px_min_y + px_max_y) / 2.0
-        msg.size_x = px_max_x - px_min_x
-        msg.size_y = px_max_y - px_min_y
+        msg.center.position.x = (px_min_x + px_max_x) / 2.0
+        msg.center.position.y = (px_min_y + px_max_y) / 2.0
+        msg.center.theta = 0.0
+        msg.size_x = float(px_max_x - px_min_x)
+        msg.size_y = float(px_max_y - px_min_y)
         
         self.bb_pub.publish(msg)
 
