@@ -11,6 +11,8 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import math
 import os
+import requests
+import time
 
 # --- USE STANDARD MESSAGE ---
 from std_msgs.msg import Float32MultiArray
@@ -55,6 +57,13 @@ class FaceTrackerNode(Node):
             min_tracking_confidence=0.5
         )
         self.detector = vision.PoseLandmarker.create_from_options(options)
+        
+        # --- ALARM LOGIC ---
+        self.NTFY_TOPIC = "hospibot_lying_down_alarm" 
+        self.notification_cooldown = 30.0 
+        self.last_notification_time = 0.0
+        self.lying_down_frame_count = 0
+        self.LYING_DOWN_FRAME_TRIGGER = 20 
         
         self.get_logger().info(f"Node started. Subscribed to '{self.IMAGE_TOPIC}'")
 
@@ -346,6 +355,26 @@ class FaceTrackerNode(Node):
         else:
             return "No TORSO Ratio", 0.0, 0.0, 0.0, "", 0.0, 0.0, None, None, 0.0, 0.0, 0.0
 
+    def send_notification(self):
+        """Sends a push notification via ntfy if cooldown has passed."""
+        current_time = time.time()
+        if (current_time - self.last_notification_time) > self.notification_cooldown:
+            self.get_logger().warn('LYING DOWN DETECTED! Sending ntfy notification...')
+            try:
+                requests.post(
+                    f"https://ntfy.sh/{self.NTFY_TOPIC}",
+                    data="Fall detected! A person is lying down.".encode(encoding='utf-8'),
+                    headers={
+                        "Title": "TurtleBot Alert: Possible Fall Detected",
+                        "Priority": "urgent",
+                        "Tags": "warning,rotating_light",
+                    })
+                self.last_notification_time = current_time
+            except requests.exceptions.RequestException as e:
+                self.get_logger().error(f"Could not send notification: {e}")
+        else:
+            self.get_logger().info('Lying down detected, but in notification cooldown period.')
+
     def process_frame_and_publish_bbox(self, landmarks, image, h, w):
         """Calculates bbox from landmarks, publishes ROS msg, draws on image."""
         if not landmarks:
@@ -432,6 +461,19 @@ class FaceTrackerNode(Node):
              hip_length, shoulder_length, torso_ratio) = self.analyze_pose(
                 pose_world_landmarks, pose_landmarks
             )
+
+            # --- ALARM TRIGGER LOGIC ---
+            if "Lying Down" in pose_status:
+                self.lying_down_frame_count += 1
+                self.get_logger().info(f'Possible Lying Down... Count: {self.lying_down_frame_count}/{self.LYING_DOWN_FRAME_TRIGGER}', throttle_duration_sec=1)
+                
+                if self.lying_down_frame_count >= self.LYING_DOWN_FRAME_TRIGGER:
+                    self.send_notification()
+                    self.lying_down_frame_count = 0 
+            else:
+                if self.lying_down_frame_count > 0:
+                    self.get_logger().info('Lying down state reset.')
+                self.lying_down_frame_count = 0
             
             self.draw_visualizations(
                 cv_image, 
