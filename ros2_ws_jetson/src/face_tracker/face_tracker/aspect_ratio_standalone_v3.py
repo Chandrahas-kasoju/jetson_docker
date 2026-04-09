@@ -11,6 +11,9 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import math
 import os
+import yaml
+import time
+import requests
 
 # --- USE STANDARD MESSAGE ---
 from std_msgs.msg import Float32MultiArray
@@ -21,8 +24,51 @@ class FaceTrackerNode(Node):
         super().__init__('face_tracker_node')
         self.get_logger().info(f"Starting Face Tracker Node...")
         
-        # Constants
+        # Load variables from YAML
+        self.config_path = os.path.join(os.path.dirname(__file__), 'config.yaml')
         self.IMAGE_TOPIC = "/hospibot/image_raw"
+        self.aspect_ratio_tall_threshold = 2.0
+        self.aspect_ratio_wide_threshold = 0.6
+        self.foreshortened_span_threshold = 0.45
+        self.foreshortened_aspect_ratio_threshold = 1.2
+        self.spine_angle_1 = 60.0
+        self.spine_angle_2 = 45.0
+        self.knee_angle_threshold = 45.0
+        self.hip_spine_angle_threshold = 160.0
+        self.min_pose_detection_confidence = 0.5
+        self.min_pose_presence_confidence = 0.5
+        self.min_tracking_confidence = 0.5
+
+        self.NTFY_TOPIC = "hospibot_lying_down_alarm"
+        self.notification_cooldown = 30.0
+        self.last_notification_time = 0.0
+
+        try:
+            with open(self.config_path, 'r') as file:
+                config = yaml.safe_load(file)
+            
+            if config:
+                topics = config.get('topics', {})
+                self.IMAGE_TOPIC = topics.get('image_topic', self.IMAGE_TOPIC)
+                
+                thresholds = config.get('pose_thresholds', {})
+                self.aspect_ratio_tall_threshold = float(thresholds.get('aspect_ratio_tall', self.aspect_ratio_tall_threshold))
+                self.aspect_ratio_wide_threshold = float(thresholds.get('aspect_ratio_wide', self.aspect_ratio_wide_threshold))
+                self.foreshortened_span_threshold = float(thresholds.get('foreshortened_span', self.foreshortened_span_threshold))
+                self.foreshortened_aspect_ratio_threshold = float(thresholds.get('foreshortened_aspect_ratio', self.foreshortened_aspect_ratio_threshold))
+                self.spine_angle_1 = float(thresholds.get('spine_angle_1', self.spine_angle_1))
+                self.spine_angle_2 = float(thresholds.get('spine_angle_2', self.spine_angle_2))
+                self.knee_angle_threshold = float(thresholds.get('knee_angle', self.knee_angle_threshold))
+                self.hip_spine_angle_threshold = float(thresholds.get('hip_spine_angle', self.hip_spine_angle_threshold))
+                
+                mp_config = config.get('mediapipe', {})
+                self.min_pose_detection_confidence = float(mp_config.get('min_pose_detection_confidence', self.min_pose_detection_confidence))
+                self.min_pose_presence_confidence = float(mp_config.get('min_pose_presence_confidence', self.min_pose_presence_confidence))
+                self.min_tracking_confidence = float(mp_config.get('min_tracking_confidence', self.min_tracking_confidence))
+                
+            self.get_logger().info(f"Loaded config from {self.config_path}")
+        except Exception as e:
+            self.get_logger().warn(f"Failed to load full config from {self.config_path}: {e}. Using default values.")
         
         # Define Pose Connections (Standard MediaPipe Pose)
         self.POSE_CONNECTIONS = frozenset([
@@ -50,13 +96,36 @@ class FaceTrackerNode(Node):
         options = vision.PoseLandmarkerOptions(
             base_options=base_options,
             output_segmentation_masks=False,
-            min_pose_detection_confidence=0.5,
-            min_pose_presence_confidence=0.5,
-            min_tracking_confidence=0.5
+            min_pose_detection_confidence=self.min_pose_detection_confidence,
+            min_pose_presence_confidence=self.min_pose_presence_confidence,
+            min_tracking_confidence=self.min_tracking_confidence
         )
         self.detector = vision.PoseLandmarker.create_from_options(options)
         
         self.get_logger().info(f"Node started. Subscribed to '{self.IMAGE_TOPIC}'")
+
+    def send_notification(self):
+        """Sends a push notification via ntfy if cooldown has passed."""
+        current_time = time.time()
+        if (current_time - self.last_notification_time) > self.notification_cooldown:
+            self.get_logger().warn('LYING DOWN DETECTED! Sending ntfy notification...')
+            try:
+                #sound_url = "https://drive.google.com/uc?export=download&id=12zvG0EZ5uab9bDT_Z_B9i83zCWdeAztg"
+                requests.post(
+                    f"https://ntfy.sh/{self.NTFY_TOPIC}",
+                    data="Fall detected! A person is lying down.".encode(encoding='utf-8'),
+                    headers={
+                        "Title": "TurtleBot Alert: Possible Fall Detected",
+                        "Priority": "urgent",
+                        "Tags": "warning,rotating_light",
+                        #"Attach": sound_url,
+                        #"Actions": f"view, Play Alarm Sound, {sound_url}"
+                    })
+                self.last_notification_time = current_time
+            except requests.exceptions.RequestException as e:
+                self.get_logger().error(f"Could not send notification: {e}")
+        else:
+            self.get_logger().info('Lying down detected, but in notification cooldown period.')
 
     def draw_landmarks_custom(self, image, landmarks, connections):
         """Custom landmark drawing function using OpenCV"""
@@ -107,7 +176,7 @@ class FaceTrackerNode(Node):
         
         # Define colors based on status
         status_color = (0, 255, 0) # Green for Not Lying/No Human
-        if pose_status == "Lying Down":
+        if "Lying Down" in pose_status:
             status_color = (0, 0, 255) # Red for Lying Down
 
         # --- Draw the status text ---
@@ -285,10 +354,10 @@ class FaceTrackerNode(Node):
 
         # --- 4. DETERMINE STATUS ---
         
-        ASPECT_RATIO_TALL_THRESHOLD = 2.0  
-        ASPECT_RATIO_WIDE_THRESHOLD = 0.6 
-        FORESHORTENED_SPAN_THRESHOLD = 0.45
-        FORESHORTENED_ASPECT_RATIO_THRESHOLD = 1.2 
+        ASPECT_RATIO_TALL_THRESHOLD = self.aspect_ratio_tall_threshold  
+        ASPECT_RATIO_WIDE_THRESHOLD = self.aspect_ratio_wide_threshold 
+        FORESHORTENED_SPAN_THRESHOLD = self.foreshortened_span_threshold
+        FORESHORTENED_ASPECT_RATIO_THRESHOLD = self.foreshortened_aspect_ratio_threshold 
 
         pose_status = "Not Lying Down" 
 
@@ -306,14 +375,14 @@ class FaceTrackerNode(Node):
                 aspect_ratio < FORESHORTENED_ASPECT_RATIO_THRESHOLD) and (thigh_vec_y < thigh_vec_x):
                 pose_status = "Lying Down 4"
             else:
-                if spine_angle > 60: ## CHECK THIS LATER
+                if spine_angle > self.spine_angle_1: ## CHECK THIS LATER
                     pose_status = "Lying Down 5"
                 else:
                     pose_status = "Not Lying Down 6"
 
 
             if pose_status == "Lying Down" and (thigh_vec_y < thigh_vec_x):
-                if hip_spine_angle < 160:
+                if hip_spine_angle < self.hip_spine_angle_threshold:
                     pose_status = "Not Lying Down 7"
                 else:
                     pose_status = "Lying Down 8"
@@ -329,12 +398,12 @@ class FaceTrackerNode(Node):
             elif aspect_ratio < ASPECT_RATIO_WIDE_THRESHOLD:
                 delta_x = abs(vec_x)
                 delta_y = abs(vec_y)
-                if delta_x > delta_y and spine_angle > 45 and knee_angle > 45:
+                if delta_x > delta_y and spine_angle > self.spine_angle_2 and knee_angle > self.knee_angle_threshold:
                     pose_status = "Lying Down 2b"
                 else:
                     pose_status = "Not Lying Down 3b"
             elif (vertical_span < FORESHORTENED_SPAN_THRESHOLD and 
-                aspect_ratio < FORESHORTENED_ASPECT_RATIO_THRESHOLD) and spine_angle > 45 and knee_angle > 45:
+                aspect_ratio < FORESHORTENED_ASPECT_RATIO_THRESHOLD) and spine_angle > self.spine_angle_2 and knee_angle > self.knee_angle_threshold:
                 pose_status = "Lying Down 4b"
             else:
                 pose_status = "Not Lying Down 5b"
@@ -432,6 +501,9 @@ class FaceTrackerNode(Node):
              hip_length, shoulder_length, torso_ratio) = self.analyze_pose(
                 pose_world_landmarks, pose_landmarks
             )
+            
+            if "Lying Down" in pose_status:
+                self.send_notification()
             
             self.draw_visualizations(
                 cv_image, 

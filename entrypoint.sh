@@ -7,6 +7,7 @@ export PATH="/home/docker_user/.local/bin:${PATH}"
 
 # Source the main ROS 2 setup file
 source /opt/ros/${ROS_DISTRO}/setup.bash
+export ROS_DOMAIN_ID=0
 
 # Source micro-ROS setup if it exists
 if [ -f /micro_ros_ws/install/setup.bash ]; then

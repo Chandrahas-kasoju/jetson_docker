@@ -1,0 +1,17 @@
+topics:
+  image_topic: "/hospibot/image_raw"
+
+pose_thresholds:
+  aspect_ratio_tall: 2.0
+  aspect_ratio_wide: 0.6
+  foreshortened_span: 0.45
+  foreshortened_aspect_ratio: 1.2
+  spine_angle_1: 60.0
+  spine_angle_2: 45.0
+  knee_angle: 45.0
+  hip_spine_angle: 160.0
+
+mediapipe:
+  min_pose_detection_confidence: 0.3
+  min_pose_presence_confidence: 0.3
+  min_tracking_confidence: 0.5

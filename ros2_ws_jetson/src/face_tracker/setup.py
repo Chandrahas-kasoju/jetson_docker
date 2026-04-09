@@ -9,7 +9,7 @@ setup(
     version='0.0.0',
     packages=find_packages(exclude=['test']),
     package_data={
-        package_name: ['*.task'],
+        package_name: ['*.task', '*.yaml'],
     },
     data_files=[
         ('share/ament_index/resource_index/packages',

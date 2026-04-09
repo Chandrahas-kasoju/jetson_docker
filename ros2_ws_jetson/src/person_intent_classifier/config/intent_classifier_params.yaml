@@ -1,0 +1,120 @@
+# Person Intent Classifier Configuration File
+# This YAML file contains all configurable parameters for the Person Intent Classifier node
+# Users can modify these values to tune the behavior for their specific use case
+
+/person_intent_classifier:
+  ros__parameters:
+
+    # TOPIC CONFIGURATION
+
+    # ROS2 topic names for input data
+    bbox_topic: '/hospibot/pose_bbox'          # Bounding box input topic
+    radar_topic: '/person_detect/filtered_points'  # Radar point cloud topic
+    
+
+    # CAMERA PARAMETERS
+    # Image dimensions and processing settings
+    image_width: 256                             # Camera image width in pixels
+    image_height: 192                            # Camera image height in pixels
+    
+
+    # INTENT CLASSIFICATION PARAMETERS
+    # Thresholds and sensitivity settings for intent detection
+    
+    # Close Proximity Detection
+    close_threshold_ratio: 0.40                  # Proximity threshold (70% of image height)
+                                               # When person size exceeds this ratio of image height,
+                                               # classify as CLOSE_PROXIMITY
+    
+    # Radar-based Interaction Detection
+    interaction_radius: 2.0                      # Interaction radius in meters
+                                               # Distance threshold for detecting interaction intent
+                                               # using Distance-to-Closest-Approach (DCA)
+    
+    # Radar Data Processing
+    radar_timeout: 0.5                           # Radar data freshness timeout in seconds
+                                               # Maximum age of radar data to consider valid
+    
+
+    # STATE STABILIZATION PARAMETERS
+    # Settings to prevent flickering and ensure stable state transitions
+    
+    persistence_threshold: 12                    # State persistence threshold
+                                               # Number of consecutive detections required before
+                                               # changing state (higher = more stable, less responsive)
+    
+
+    # DATA SMOOTHING PARAMETERS
+    # Historical data processing for noise reduction
+    
+    smoothing_window: 5                         # Smoothing window size
+                                               # Number of previous measurements to average
+                                               # for camera-based analysis (higher = smoother but less responsive)
+    
+    # Radar centroid smoothing window
+    radar_smoothing_window: 5                    # Number of radar measurements to smooth
+                                               # Reduces jitter in radar-based velocity calculations
+    
+
+    # RADAR PROCESSING PARAMETERS
+    # Fine-tuning for radar data processing
+    
+    # Speed thresholds for motion detection
+    low_speed_threshold: 0.02                    # Minimum speed (m/s) to consider movement
+                                               # Below this threshold, person is considered stationary
+    
+    # Velocity direction detection
+    moving_away_threshold: 0.1                   # Threshold for dot product analysis
+                                               # Positive value indicates moving away from sensor
+    
+    # Time delta filtering
+    min_time_delta: 0.05                         # Minimum time difference (seconds) between
+                                               # radar measurements for velocity calculation
+    
+
+    # CAMERA MOTION ANALYSIS PARAMETERS
+    # Settings for camera-based motion detection
+    
+    # Size change thresholds
+    approaching_threshold: 0.8                   # Minimum size increase (pixels) to detect approaching
+    moving_away_size_threshold: 0.8              # Minimum size decrease (pixels) to detect moving away
+    
+    # Horizontal position analysis
+    center_tolerance_ratio: 0.25                 # Tolerance ratio for center position analysis
+                                                 # 0.25 means ±25% of image width from center
+
+
+    # PERSON DETECTION PARAMETERS
+    # Settings for person detection and timeout behavior
+
+    bbox_timeout: 2.0                            # Timeout in seconds before showing "No person detected"
+                                               # How long to wait without bounding box before declaring no person
+                                               
+    
+
+    # DEBUGGING AND LOGGING PARAMETERS
+    # Optional settings for development and troubleshooting
+    
+    debug_mode: false                            # Enable debug logging and output
+    print_interval: 0.1                          # Print output interval in seconds (0 = every update)
+    
+
+    # PERFORMANCE PARAMETERS
+    # Settings for optimizing performance
+    
+    max_processing_frequency: 20.0               # Maximum processing frequency in Hz
+                                               # Limits CPU usage by capping update rate
+    
+
+    # EXPERT TUNING PARAMETERS
+    # Advanced parameters for fine-tuning (modify with caution)
+    
+    # Radar confidence weighting
+    radar_confidence_threshold: 0.5              # Minimum radar data quality to trust radar over camera
+    
+    # Fusion logic parameters
+    camera_priority_threshold: 0.85              # Size ratio threshold where camera takes priority
+    fallback_timeout: 1.0                        # Time to wait before falling back to camera-only mode
+    
+    # State transition smoothing
+    state_transition_delay: 0.2                  # Minimum time between state transitions in seconds
