@@ -42,6 +42,8 @@ class FaceTrackerNode(Node):
         self.NTFY_TOPIC = "hospibot_lying_down_alarm"
         self.notification_cooldown = 30.0
         self.last_notification_time = 0.0
+        self.lying_down_frame_count = 0
+        self.LYING_DOWN_FRAME_TRIGGER = 20 
 
         try:
             with open(self.config_path, 'r') as file:
@@ -368,15 +370,15 @@ class FaceTrackerNode(Node):
                 delta_x = abs(vec_x)
                 delta_y = abs(vec_y)
                 if delta_x > delta_y:
-                    pose_status = "Lying Down 2"
+                    pose_status = "Lying Down"
                 else:
                     pose_status = "Not Lying Down 3"
             elif (vertical_span < FORESHORTENED_SPAN_THRESHOLD and 
                 aspect_ratio < FORESHORTENED_ASPECT_RATIO_THRESHOLD) and (thigh_vec_y < thigh_vec_x):
-                pose_status = "Lying Down 4"
+                pose_status = "Lying Down"
             else:
                 if spine_angle > self.spine_angle_1: ## CHECK THIS LATER
-                    pose_status = "Lying Down 5"
+                    pose_status = "Lying Down"
                 else:
                     pose_status = "Not Lying Down 6"
 
@@ -385,7 +387,7 @@ class FaceTrackerNode(Node):
                 if hip_spine_angle < self.hip_spine_angle_threshold:
                     pose_status = "Not Lying Down 7"
                 else:
-                    pose_status = "Lying Down 8"
+                    pose_status = "Lying Down"
 
             return (pose_status, vertical_span, aspect_ratio, spine_angle, side,
                     knee_angle, hip_spine_angle,
@@ -399,12 +401,12 @@ class FaceTrackerNode(Node):
                 delta_x = abs(vec_x)
                 delta_y = abs(vec_y)
                 if delta_x > delta_y and spine_angle > self.spine_angle_2 and knee_angle > self.knee_angle_threshold:
-                    pose_status = "Lying Down 2b"
+                    pose_status = "Lying Down"
                 else:
                     pose_status = "Not Lying Down 3b"
             elif (vertical_span < FORESHORTENED_SPAN_THRESHOLD and 
                 aspect_ratio < FORESHORTENED_ASPECT_RATIO_THRESHOLD) and spine_angle > self.spine_angle_2 and knee_angle > self.knee_angle_threshold:
-                pose_status = "Lying Down 4b"
+                pose_status = "Lying Down"
             else:
                 pose_status = "Not Lying Down 5b"
             
@@ -502,8 +504,18 @@ class FaceTrackerNode(Node):
                 pose_world_landmarks, pose_landmarks
             )
             
+             # --- ALARM TRIGGER LOGIC ---
             if "Lying Down" in pose_status:
-                self.send_notification()
+                self.lying_down_frame_count += 1
+                self.get_logger().info(f'Possible Lying Down... Count: {self.lying_down_frame_count}/{self.LYING_DOWN_FRAME_TRIGGER}', throttle_duration_sec=1)
+                
+                if self.lying_down_frame_count >= self.LYING_DOWN_FRAME_TRIGGER:
+                    self.send_notification()
+                    self.lying_down_frame_count = 0 
+            else:
+                if self.lying_down_frame_count > 0:
+                    self.get_logger().info('Lying down state reset.')
+                self.lying_down_frame_count = 0
             
             self.draw_visualizations(
                 cv_image, 
