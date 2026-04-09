@@ -16,7 +16,7 @@ import time
 import requests
 
 # --- USE STANDARD MESSAGE ---
-from std_msgs.msg import Float32MultiArray
+from std_msgs.msg import Float32MultiArray, ColorRGBA
 from vision_msgs.msg import Point2D, BoundingBox2D
 
 class FaceTrackerNode(Node):
@@ -90,6 +90,17 @@ class FaceTrackerNode(Node):
         self.bb_pub = self.create_publisher(BoundingBox2D, '/hospibot/pose_bbox', 10)
         self.eye_center_pub = self.create_publisher(Point2D, '/face_tracker/eye_center', 10)
         self.analysis_pub = self.create_publisher(Image, '/hospibot/posture_analysis', 10)
+        self.led_pub = self.create_publisher(ColorRGBA, '/led_color', 10)
+        
+        self.last_blink_time = time.time()
+        self.led_blink_on = True
+        self.current_led_state = 'cyan'
+        self.alarm_triggered_time = 0.0
+        
+        # Publish cyan on startup
+        led_msg = ColorRGBA(r=0.0, g=255.0, b=255.0, a=0.5)
+        self.led_pub.publish(led_msg)
+        self.get_logger().info("Published initial Cyan color to /led_color")
         
         # MediaPipe Tasks API Setup
         model_path = os.path.join(os.path.dirname(__file__), 'pose_landmarker_full.task')
@@ -505,17 +516,38 @@ class FaceTrackerNode(Node):
             )
             
              # --- ALARM TRIGGER LOGIC ---
-            if "Lying Down" in pose_status:
+            if pose_status == "Lying Down":
                 self.lying_down_frame_count += 1
                 self.get_logger().info(f'Possible Lying Down... Count: {self.lying_down_frame_count}/{self.LYING_DOWN_FRAME_TRIGGER}', throttle_duration_sec=1)
                 
                 if self.lying_down_frame_count >= self.LYING_DOWN_FRAME_TRIGGER:
                     self.send_notification()
+                    self.alarm_triggered_time = time.time()
                     self.lying_down_frame_count = 0 
             else:
                 if self.lying_down_frame_count > 0:
                     self.get_logger().info('Lying down state reset.')
                 self.lying_down_frame_count = 0
+                
+            # --- LED STATE MACHINE ---
+            current_time = time.time()
+            if current_time - self.alarm_triggered_time < 5.0:  # Blink for 5 seconds after alarm triggers
+                if current_time - self.last_blink_time > 0.25:  # Blink every 0.25s
+                    self.led_blink_on = not self.led_blink_on
+                    self.last_blink_time = current_time
+                    led_msg = ColorRGBA()
+                    if self.led_blink_on:
+                        led_msg.r = 255.0; led_msg.g = 0.0; led_msg.b = 0.0; led_msg.a = 0.5
+                    else:
+                        led_msg.r = 0.0; led_msg.g = 0.0; led_msg.b = 0.0; led_msg.a = 0.5
+                    self.led_pub.publish(led_msg)
+                    self.current_led_state = 'blinking'
+            else:
+                # Revert to Cyan
+                if self.current_led_state != 'cyan':
+                    led_msg = ColorRGBA(r=0.0, g=255.0, b=255.0, a=0.5)
+                    self.led_pub.publish(led_msg)
+                    self.current_led_state = 'cyan'
             
             self.draw_visualizations(
                 cv_image, 
@@ -532,13 +564,37 @@ class FaceTrackerNode(Node):
             )
         else:
              # Default is "No Human"
-            defaults = "No Human", 0.0, 0.0, 0.0, "", 0.0, 0.0, None, None, 0.0, 0.0, 0.0
-            (pose_status, vertical_span, aspect_ratio, spine_angle, side,
-             knee_angle, hip_spine_angle,
-             thigh_vec_norm, knee_2d,
-             hip_length, shoulder_length, torso_ratio) = defaults
+             defaults = "No Human", 0.0, 0.0, 0.0, "", 0.0, 0.0, None, None, 0.0, 0.0, 0.0
+             (pose_status, vertical_span, aspect_ratio, spine_angle, side,
+              knee_angle, hip_spine_angle,
+              thigh_vec_norm, knee_2d,
+              hip_length, shoulder_length, torso_ratio) = defaults
              
-            self.draw_visualizations(
+             if self.lying_down_frame_count > 0:
+                 self.get_logger().info('Lying down state reset (No Human).')
+             self.lying_down_frame_count = 0
+             
+             # --- LED STATE MACHINE ---
+             current_time = time.time()
+             if current_time - self.alarm_triggered_time < 5.0:
+                 if current_time - self.last_blink_time > 0.25:
+                     self.led_blink_on = not self.led_blink_on
+                     self.last_blink_time = current_time
+                     led_msg = ColorRGBA()
+                     if self.led_blink_on:
+                         led_msg.r = 255.0; led_msg.g = 0.0; led_msg.b = 0.0; led_msg.a = 0.5
+                     else:
+                         led_msg.r = 0.0; led_msg.g = 0.0; led_msg.b = 0.0; led_msg.a = 0.5
+                     self.led_pub.publish(led_msg)
+                     self.current_led_state = 'blinking'
+             else:
+                 # Revert to Cyan
+                 if self.current_led_state != 'cyan':
+                     led_msg = ColorRGBA(r=0.0, g=255.0, b=255.0, a=0.5)
+                     self.led_pub.publish(led_msg)
+                     self.current_led_state = 'cyan'
+             
+             self.draw_visualizations(
                 cv_image, 
                 None, 
                 self.POSE_CONNECTIONS,
